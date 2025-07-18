@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>PyScript XLS Viewer</title>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  </head>
+  <body>
+    <h1>XLS Table Viewer with PyScript</h1>
+    <input type="file" id="file-input" accept=".xls,.xlsx" />
+    <div id="output"></div>
+
+    <py-config>
+      packages = ["pandas", "openpyxl", "xlrd"]
+    </py-config>
+
+    <py-script>
+import pandas as pd
+from pyodide.ffi import create_proxy
+from js import document
+
+def handle_file(event):
+    file_list = event.target.files
+    if len(file_list) == 0:
+        return
+    file = file_list[0]
+    reader = __new__(FileReader())
+    reader.onload = create_proxy(lambda e: read_xls(e.target.result, file.name))
+    reader.readAsArrayBuffer(file)
+
+def read_xls(array_buffer, filename):
+    import io
+    import base64
+
+    # Convert JS ArrayBuffer to bytes
+    uint8 = js.Uint8Array.new(array_buffer)
+    data = bytes(uint8.to_py())
+    file_like = io.BytesIO(data)
+
+    try:
+        if filename.endswith('.xls'):
+            df = pd.read_excel(file_like, engine="xlrd")
+        else:
+            df = pd.read_excel(file_like, engine="openpyxl")
+    except Exception as e:
+        document.getElementById("output").innerHTML = f"<b>Error:</b> {e}"
+        return
+
+    # Show the first 10 rows as a table
+    html_table = df.head(10).to_html(index=False)
+    document.getElementById("output").innerHTML = html_table
+
+file_input = document.getElementById("file-input")
+file_input.addEventListener("change", create_proxy(handle_file))
+    </py-script>
+  </body>
+</html>
